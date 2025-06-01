@@ -1,0 +1,10 @@
+{
+  "atom_address": "YOUR_ATOM_ADDRESS_HERE",
+  "validator_address": "YOUR_PREFERRED_VALIDATOR_ADDRESS_HERE (optional)",
+  "rpc_endpoint": "https://rpc.cosmos.network:443",
+  "chain_id": "cosmoshub-4",
+  "gas_price": "0.025uatom",
+  "gas_limit": "300000",
+  "fee_denom": "uatom",
+  "memo": "Auto-compounded by script"
+}
