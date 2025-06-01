@@ -262,6 +262,164 @@ Cron is a time-based job scheduler in Unix-like operating systems.
 
 By following these steps, you can have your `atom_compounder.py` script run automatically on a weekly basis. Remember to test your scheduled task setup thoroughly to ensure it runs correctly and handles the environment variable as expected.
 
+## Experimental: Running with Termux on Android
+
+This section provides guidance on how to run the ATOM Auto-Compounding script on an Android device using Termux. Please note that this is an **experimental approach** and comes with significant limitations regarding reliability and security compared to running on a desktop or server.
+
+**!!! IMPORTANT CAVEATS FOR TERMUX USAGE !!!**
+
+*   **Reliability of Scheduling:** Android's aggressive battery optimization and process management can terminate Termux or its scheduled jobs, especially when the phone is idle or the Termux app is not in the foreground. `termux-job-scheduler` attempts to mimic cron, but its effectiveness can be inconsistent. For critical, precisely timed weekly execution, this is likely **not reliable enough**.
+*   **Security of Mnemonic:** While Termux provides a Linux-like environment, managing your `ATOM_MNEMONIC` securely is still a concern. It will be an environment variable within Termux's sandboxed environment. Ensure your device is secure.
+*   **Power Consumption:** Running tasks in Termux, especially if `termux-wake-lock` is used to improve reliability, can consume more battery.
+*   **User Intervention:** Expect that this method may require more manual checking and potential intervention than a server-based cron job.
+*   **Termux Source:** It is highly recommended to install Termux from **F-Droid** as the Google Play Store version is outdated and no longer maintained.
+
+**Steps to Run the Script with Termux (Manual Execution):**
+
+1.  **Install Termux:**
+    *   Download and install Termux from F-Droid: [https://f-droid.org/packages/com.termux/](https://f-droid.org/packages/com.termux/)
+    *   You may also want to install the "Termux:API" add-on from F-Droid if you plan to explore more advanced scripting later (not strictly needed for this script).
+
+2.  **Open Termux and Update Packages:**
+    ```bash
+    pkg update && pkg upgrade
+    ```
+
+3.  **Install Python and Git:**
+    ```bash
+    pkg install python git
+    ```
+    (Git is needed if you plan to clone a repository. If you're manually transferring files, you might not need git immediately).
+
+4.  **Get the Script Files:**
+    *   **Option A (If the script is in a Git repository):**
+        ```bash
+        git clone <repository_url>
+        cd <repository_directory_name>
+        ```
+    *   **Option B (Manual Transfer):**
+        *   You'll need to transfer `atom_compounder.py`, `requirements.txt`, and `config.sample.json` to your phone's storage in a location accessible by Termux.
+        *   Termux can access shared storage after you run `termux-setup-storage`. This usually creates a symlink at `~/storage`. You can then navigate, e.g., to `~/storage/shared/Download` if you downloaded files there.
+        *   Example: `cp ~/storage/shared/Download/atom_compounder.py .`
+
+5.  **Set up Virtual Environment (Optional but Recommended):**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate
+    ```
+
+6.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+7.  **Configure the Script:**
+    *   Copy `config.sample.json` to `config.json`:
+        ```bash
+        cp config.sample.json config.json
+        ```
+    *   Edit `config.json` with your details using a command-line editor available in Termux (e.g., `nano`, `vim`, or `micro` - install with `pkg install nano` for example):
+        ```bash
+        nano config.json
+        ```
+        Fill in your ATOM address, validator address, RPC endpoint, etc., as described in the main "Configuration" section of this README.
+
+8.  **Set the `ATOM_MNEMONIC` Environment Variable:**
+    *   In your Termux session, set the variable:
+        ```bash
+        export ATOM_MNEMONIC="your twelve twentyfour word mnemonic phrase just like this"
+        ```
+    *   **Note:** This variable is only set for the current Termux session. For scheduled tasks, ensuring this variable is available is more complex (see scheduling section below). For manual runs, you'll set this each time you start a new session.
+
+9.  **Run the Script Manually:**
+    ```bash
+    python atom_compounder.py
+    ```
+    Verify it runs correctly and interacts with the network as expected.
+
+### Scheduling with `termux-job-scheduler` (Experimental)
+
+Termux provides a package called `termux-job-scheduler` that allows you to schedule scripts to run periodically, similar to cron. However, due to Android's power-saving features, these jobs may not always run reliably or at the exact scheduled time, especially if the device is asleep or Termux is not in the foreground.
+
+**1. Install `termux-job-scheduler`:**
+   Open Termux and run:
+   ```bash
+   pkg install termux-job-scheduler
+   ```
+
+**2. Create a Wrapper Script for Execution:**
+   To ensure the `ATOM_MNEMONIC` environment variable is set and paths are correct for the scheduled job, it's best to use a small wrapper script.
+
+   *   Create a file, for example, `~/run_atom_compounder.sh`:
+       ```bash
+       nano ~/run_atom_compounder.sh
+       ```
+   *   Add the following content to the wrapper script:
+       ```bash
+       #!/data/data/com.termux/files/usr/bin/bash
+       # Wrapper script for Termux job scheduler
+
+       # Set the ATOM_MNEMONIC environment variable
+       # IMPORTANT: Storing the mnemonic directly in a script like this has security implications.
+       # Ensure this script file is protected if you choose this method.
+       export ATOM_MNEMONIC="your twelve twentyfour word mnemonic phrase just like this"
+
+       # Navigate to the script's directory (IMPORTANT!)
+       # Replace /path/to/your/script/directory with the actual path in Termux,
+       # e.g., ~/atom-auto-compounder if you cloned it into home.
+       cd /data/data/com.termux/files/home/path/to/your/script/directory
+
+       # Activate virtual environment if you use one (adjust path if needed)
+       # source venv/bin/activate
+
+       # Define the full path to the Python interpreter from your venv or Termux's python
+       # PYTHON_EXEC="venv/bin/python" # If using venv and script is in venv parent
+       PYTHON_EXEC="/data/data/com.termux/files/usr/bin/python" # Termux's default python
+
+       # Define the full path to your script
+       SCRIPT_PATH="atom_compounder.py" # If CD'd into the script directory
+
+       # Define a log file path (optional, but recommended for scheduled tasks)
+       LOG_FILE="/data/data/com.termux/files/home/path/to/your/script/directory/atom_compounder.log"
+
+       echo "--- Job started at $(date) ---" >> $LOG_FILE
+       # Execute the Python script, redirecting stdout and stderr to the log file
+       $PYTHON_EXEC $SCRIPT_PATH >> $LOG_FILE 2>&1
+       echo "--- Job finished at $(date) ---" >> $LOG_FILE
+       ```
+       **Modify the placeholder paths and `ATOM_MNEMONIC` value.**
+
+   *   Make the wrapper script executable:
+       ```bash
+       chmod +x ~/run_atom_compounder.sh
+       ```
+
+**3. Schedule the Wrapper Script:**
+   To schedule the script to run, for example, every Sunday at 3:00 AM:
+   ```bash
+   termux-job-scheduler --script ~/run_atom_compounder.sh --period weekly --time 03:00 --weekday sun
+   ```
+   *   `--script ~/run_atom_compounder.sh`: Path to your executable wrapper script.
+   *   `--period weekly`: Sets the job to run weekly. Other options: `hourly`, `daily`, `monthly`, `boot`.
+   *   `--time 03:00`: Sets the time (24-hour format).
+   *   `--weekday sun`: Sets the day for weekly jobs (mon, tue, wed, thu, fri, sat, sun).
+
+   You can view scheduled jobs with `termux-job-scheduler -l` and cancel them with `termux-job-scheduler -c <JOB_ID>`.
+
+**4. Improving Reliability (Optional - `termux-wake-lock`):**
+   To prevent Termux from being killed by Android's battery optimizations, you might need to acquire a wake lock.
+   *   Run `termux-wake-lock` in a separate Termux session before the job is expected to run. This keeps the CPU partially awake.
+   *   Run `termux-wake-unlock` to release it.
+   This will consume more battery. Automating the wake lock around the job execution time is complex and outside the scope of simple `termux-job-scheduler` usage.
+
+**RELIABILITY WARNINGS (Reiteration):**
+
+*   **Android Power Management:** Android is designed to save battery by stopping apps and processes that are not actively in the foreground. Scheduled jobs in Termux are highly susceptible to this. They might be delayed or not run at all, especially on heavily customized Android versions or with aggressive battery savers.
+*   **Test Thoroughly:** If you choose to use this, test extensively to see if it works reliably on your specific device and Android version.
+*   **Not for Critical Tasks:** Do not rely on this method for tasks that absolutely *must* run at a specific time without fail. For critical scheduling, a proper server environment is recommended.
+
+This setup is offered as an option for users who understand and accept these limitations.
+
 ## Disclaimer
 
 *   This script is provided "as is", without warranty of any kind.
