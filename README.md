@@ -6,10 +6,10 @@ This script helps to automatically claim and restake ATOM (Cosmos Hub) staking r
 
 ## !!! IMPORTANT SECURITY WARNINGS !!!
 
-*   **MNEMONIC HANDLING:** The current version of this script prompts for your wallet's mnemonic phrase directly in the console each time it needs to sign a transaction (claim or stake). **THIS IS EXTREMELY INSECURE.** Your mnemonic grants full control over your funds. Entering it into a script poses significant security risks, including exposure through shell history, shoulder surfing, or if the script's environment is compromised.
-*   **FOR DEVELOPMENT & TESTING ONLY:** This method is intended strictly for development and testing with small, non-critical amounts.
-*   **DO NOT USE WITH MAINNET ACCOUNTS CONTAINING SIGNIFICANT VALUE.**
-*   Future versions should implement more secure key management (e.g., using environment variables, OS keychain, or integration with hardware wallets if feasible for a script).
+*   **MNEMONIC HANDLING VIA ENVIRONMENT VARIABLE:** This script now requires your wallet's mnemonic phrase to be set as an environment variable named `ATOM_MNEMONIC`. While this is an improvement over direct console input, the security of your mnemonic now depends entirely on the security of this environment variable and the system it's set on.
+*   **PROTECT YOUR ENVIRONMENT VARIABLE:** If an attacker gains access to your user account or system where this environment variable is set, they can potentially retrieve the mnemonic.
+*   **MINIMIZE EXPOSURE:** Avoid setting the environment variable system-wide if possible. Prefer setting it in a way that limits its scope and lifetime (e.g., within a specific terminal session for manual runs, or carefully configured for a cron job's specific environment).
+*   **FOR DEVELOPMENT & TESTING:** This method is an improvement, but for handling significant value, consider more advanced solutions like hardware wallets (not directly scriptable in this manner) or dedicated secrets management systems.
 *   **USE AT YOUR OWN RISK.** You are solely responsible for the security of your private keys and any actions performed by this script.
 
 ## Prerequisites
@@ -73,15 +73,72 @@ This script helps to automatically claim and restake ATOM (Cosmos Hub) staking r
     *   `fee_denom`: **Required.** The denomination for fees (usually `uatom` for Cosmos Hub, which is micro-ATOM).
     *   `memo`: Optional. A memo to include with your transactions.
 
+## Secure Mnemonic Handling (Using Environment Variable)
+
+This script requires your wallet's mnemonic phrase to perform transactions (claiming rewards and staking). It expects this mnemonic to be provided via an environment variable named `ATOM_MNEMONIC`.
+
+### How to Set the `ATOM_MNEMONIC` Environment Variable
+
+**Linux/macOS:**
+
+*   **For the current terminal session only (temporary):**
+    Open your terminal and type:
+    ```bash
+    export ATOM_MNEMONIC="word1 word2 word3 ... word24"
+    ```
+    Replace `"word1 word2 ... word24"` with your actual mnemonic phrase. The phrase should be enclosed in quotes if it contains spaces (which it will).
+    **Note:** This variable will only be available in the current terminal session. If you close the terminal, you'll need to set it again.
+
+*   **For persistent setting (add to shell configuration file):**
+    You can add the `export` command to your shell's startup file (e.g., `~/.bashrc`, `~/.zshrc`, `~/.profile`). This way, the variable will be set every time you open a new terminal.
+    1.  Open your shell configuration file with a text editor (e.g., `nano ~/.bashrc`).
+    2.  Add the line: `export ATOM_MNEMONIC="your actual mnemonic phrase"`
+    3.  Save the file and close the editor.
+    4.  Apply the changes by sourcing the file (e.g., `source ~/.bashrc`) or by opening a new terminal session.
+    **Security Note:** Storing the mnemonic directly in shell configuration files is convenient but means it's stored in plain text on your filesystem. Ensure your user account and home directory are well-protected.
+
+**Windows:**
+
+*   **For the current Command Prompt session only (temporary):**
+    ```cmd
+    set ATOM_MNEMONIC=word1 word2 word3 ... word24
+    ```
+    (No quotes are typically needed unless the mnemonic itself contains special CMD characters, which is unlikely for standard BIP39 mnemonics).
+
+*   **For the current PowerShell session only (temporary):**
+    ```powershell
+    $Env:ATOM_MNEMONIC="word1 word2 word3 ... word24"
+    ```
+
+*   **For persistent setting (System Environment Variables):**
+    1.  Search for "environment variables" in the Windows search bar and select "Edit the system environment variables".
+    2.  In the System Properties window, click the "Environment Variables..." button.
+    3.  Under "User variables for [your_username]" (recommended for user-specific) or "System variables" (for all users, less recommended for secrets), click "New...".
+    4.  Variable name: `ATOM_MNEMONIC`
+    5.  Variable value: `your actual mnemonic phrase`
+    6.  Click OK on all windows. You may need to restart your Command Prompt, PowerShell, or even your computer for the changes to take full effect in all contexts.
+
+### Security Best Practices for `ATOM_MNEMONIC`:
+
+*   **Restrict Permissions:** If saving to a file like `.bashrc`, ensure the file has restrictive read/write permissions (e.g., only readable by your user).
+*   **Avoid Shell History:** Be careful if typing the `export` command directly into your shell. Some shells might save this command (including the mnemonic) in their history file. Consider temporarily disabling history or using methods that don't save the command (e.g., prefixing with a space in some `bash` configurations).
+*   **Understand Scope:** Be aware of where and how the environment variable is accessible. For scheduled tasks (cron jobs), ensure the environment for the job includes this variable securely.
+*   **This method is a step up from direct console input but is not foolproof.** The mnemonic is still in plain text in the process's environment while the script runs. Protect the system running the script.
+
 ## Running the Script
 
 1.  **Ensure your virtual environment is activated** (if you created one).
-2.  **Run the script from your terminal:**
+2.  **Set the `ATOM_MNEMONIC` Environment Variable:**
+    *   Before running the script, you MUST set the `ATOM_MNEMONIC` environment variable to your wallet's 12 or 24-word mnemonic phrase. See the "Secure Mnemonic Handling (Using Environment Variable)" section above for details and security advice.
+    *   **Example (Linux/macOS - temporary for current session):**
+        ```bash
+        export ATOM_MNEMONIC="your twelve twentyfour word mnemonic phrase just like this no commas"
+        ```
+3.  **Run the script from your terminal:**
     ```bash
     python atom_compounder.py
     ```
-3.  **Follow the prompts:**
-    *   If you have claimable rewards and a validator configured for staking, the script will ask for your wallet's mnemonic phrase to authorize transactions. **Remember the security risks mentioned above.**
+4.  **Monitor Output:** The script will log its actions to the console. It will no longer prompt for the mnemonic. If `ATOM_MNEMONIC` is not set, it will print an error and skip transactions.
 
 ## Script Workflow
 
@@ -90,11 +147,120 @@ The script performs the following actions:
 2.  Queries your ATOM account balance.
 3.  Queries your available staking rewards and identifies validators you've delegated to.
 4.  If rewards are available:
-    *   Prompts for your mnemonic phrase.
-    *   Constructs and broadcasts a transaction to claim rewards from all validators.
-    *   If claiming is successful and `validator_address` is configured:
-        *   Constructs and broadcasts a transaction to stake the (just claimed) rewards to your specified validator.
+    *   Retrieves the mnemonic from the `ATOM_MNEMONIC` environment variable.
+    *   If the mnemonic is found:
+        *   Constructs and broadcasts a transaction to claim rewards from all validators.
+        *   If claiming is successful and `validator_address` is configured:
+            *   Constructs and broadcasts a transaction to stake the (just claimed) rewards to your specified validator.
+    *   If the mnemonic is not found, it skips transaction-related operations.
 5.  Prints logs of its actions and any errors to the console.
+
+## Scheduling Weekly Execution
+
+Once you have configured the script and successfully tested it manually (ensuring `ATOM_MNEMONIC` is set in your environment), you can automate its execution using your operating system's task scheduler.
+
+**Important Considerations for Scheduled Tasks:**
+
+*   **Environment Variables:** The `ATOM_MNEMONIC` environment variable (and any others like `PATH` if your Python installation isn't standard) must be available to the execution environment of the scheduled task. How you set this depends on the OS and scheduler. For cron, this often means setting variables within the crontab itself or in a script that the cron job calls.
+*   **Full Paths:** It's best practice to use full absolute paths to the Python interpreter and the `atom_compounder.py` script in your scheduler configuration to avoid issues with `PATH` lookups.
+*   **Logging:** When run as a scheduled task, console output might be mailed to you (cron) or logged to a file, depending on configuration. You might want to redirect the script's output to a dedicated log file. Example: `python /path/to/atom_compounder.py >> /path/to/atom_compounder.log 2>&1`.
+*   **Permissions:** Ensure the user account under which the scheduled task runs has the necessary permissions to execute the script and access any required files (though this script primarily needs network access and its config).
+
+### Linux/macOS (using cron)
+
+Cron is a time-based job scheduler in Unix-like operating systems.
+
+1.  **Open your crontab for editing:**
+    ```bash
+    crontab -e
+    ```
+    If it's your first time, it might ask you to choose an editor.
+
+2.  **Add a line to schedule the script.** To run the script every Monday at 3:00 AM, for example:
+
+    ```cron
+    # Example: Run every Monday at 3:00 AM
+    # Ensure ATOM_MNEMONIC is set in a way accessible by cron,
+    # either directly here (less secure for crontab), or in a wrapper script,
+    # or if the system user's environment is fully loaded by cron (less common).
+
+    # Option 1: Define ATOM_MNEMONIC directly in crontab (use with caution)
+    # ATOM_MNEMONIC="your actual mnemonic phrase"
+    # 0 3 * * 1 /usr/bin/python3 /full/path/to/your/atom_compounder.py >> /full/path/to/your/atom_compounder.log 2>&1
+
+    # Option 2: Load ATOM_MNEMONIC from .bashrc or similar (if your cron implementation sources it - check docs)
+    # This is often NOT the default behavior for cron's minimal environment.
+    # 0 3 * * 1 . $HOME/.bashrc; /usr/bin/python3 /full/path/to/your/atom_compounder.py >> /full/path/to/your/atom_compounder.log 2>&1
+
+    # Option 3: Recommended - Use a wrapper script
+    # Create a script like /full/path/to/your/run_atom_script.sh:
+    #   #!/bin/bash
+    #   export ATOM_MNEMONIC="your actual mnemonic phrase"
+    #   # Or source a file that exports it:
+    #   # source /path/to/my_secure_env_vars.sh
+    #   /usr/bin/python3 /full/path/to/your/atom_compounder.py >> /full/path/to/your/atom_compounder.log 2>&1
+    # Make it executable: chmod +x /full/path/to/your/run_atom_script.sh
+    # Then in crontab:
+    0 3 * * 1 /full/path/to/your/run_atom_script.sh
+    ```
+
+    *   **Breakdown of `0 3 * * 1`**:
+        *   `0`: Minute (0-59) -> 0th minute
+        *   `3`: Hour (0-23) -> 3 AM
+        *   `*`: Day of the month (1-31) -> Every day
+        *   `*`: Month (1-12) -> Every month
+        *   `1`: Day of the week (0-7, where 0 and 7 are Sunday, 1 is Monday) -> Monday
+    *   Replace `/usr/bin/python3` with the actual path to your Python 3 interpreter (you can find this with `which python3`).
+    *   Replace `/full/path/to/your/atom_compounder.py` with the actual full path to the script.
+    *   Replace `/full/path/to/your/atom_compounder.log` with your desired log file path.
+    *   `>> ... 2>&1`: Appends both standard output (stdout) and standard error (stderr) to the log file.
+
+3.  **Save and exit.** Cron will automatically apply the changes.
+
+    **Managing `ATOM_MNEMONIC` for Cron:**
+    Cron jobs run in a minimal environment. The most reliable way to ensure `ATOM_MNEMONIC` is available is often by:
+    *   **Setting it in the crontab file itself** (as shown in Option 1). However, some consider this less secure as the crontab might be more accessible than user profile scripts.
+    *   **Using a wrapper shell script** (Option 3, generally recommended). The wrapper script exports the variable and then calls your Python script. This keeps the crontab clean and centralizes environment setup for the job.
+    *   Some cron systems might allow sourcing a user's profile, but this is not universally reliable.
+
+### Windows (using Task Scheduler)
+
+1.  **Open Task Scheduler:** Search for "Task Scheduler" in the Start Menu.
+2.  **Create Basic Task (or Create Task for more control):**
+    *   In the right-hand pane, click "Create Basic Task...".
+    *   **Name:** Give your task a name (e.g., "Weekly ATOM Compounding").
+    *   **Description:** (Optional)
+    *   **Trigger:** Select "Weekly". Specify the start date, time, and "Recur every: 1 weeks on: Monday" (or your desired day).
+    *   **Action:** Select "Start a program".
+        *   **Program/script:** Enter the full path to your Python interpreter (e.g., `C:\Python39\python.exe` or `C:\Users\YourUser\venv\Scripts\python.exe` if using a venv).
+        *   **Add arguments (optional):** Enter the full path to your `atom_compounder.py` script (e.g., `C:\path\to\your\atom_compounder.py`).
+        *   **Start in (optional):** Enter the directory where your script is located (e.g., `C:\path\to\your\`). This helps the script find `config.json` if it's using relative paths (though this script opens `config.json` directly, so it should be fine, but good practice).
+3.  **Set Environment Variable for the Task:**
+    *   This is the crucial part for `ATOM_MNEMONIC`. After creating the task (or if you use "Create Task" for more options initially), find your task in the Task Scheduler Library, right-click it, and select "Properties".
+    *   Under the "Actions" tab, select your "Start a program" action and click "Edit...".
+    *   Unfortunately, Task Scheduler's GUI doesn't have a direct way to set environment variables *for just that specific task action*.
+    *   **Recommended Solutions for `ATOM_MNEMONIC` with Task Scheduler:**
+        1.  **System-wide or User Environment Variable:** Set `ATOM_MNEMONIC` as a persistent User environment variable (as described in the "Secure Mnemonic Handling" section). The Task Scheduler task, if run under your user account, will inherit these. This is the simplest if you're okay with the variable being generally available to your user session.
+        2.  **Wrapper Batch/PowerShell Script:** Create a `.bat` or `.ps1` script that first sets `ATOM_MNEMONIC` and then calls the Python script.
+            *   **Batch (`.bat`):**
+                ```batch
+                @echo off
+                set ATOM_MNEMONIC=your actual mnemonic phrase
+                C:\Path\To\Python\python.exe C:\Path\To\Your\atom_compounder.py >> C:\Path\To\Your\atom_compounder.log 2>&1
+                ```
+            *   **PowerShell (`.ps1`):**
+                ```powershell
+                $env:ATOM_MNEMONIC="your actual mnemonic phrase"
+                & "C:\Path\To\Python\python.exe" "C:\Path\To\Your\atom_compounder.py" >> "C:\Path\To\Your\atom_compounder.log" # PowerShell redirection is different
+                ```
+            Then, schedule this wrapper script in Task Scheduler instead of directly calling Python.
+4.  **Further Configuration (Properties):**
+    *   Under the "General" tab, you might want to set "Run whether user is logged on or not" (may require password input). Ensure the user account has rights.
+    *   Under "Conditions", you can specify power settings, etc.
+    *   Under "Settings", configure retry attempts or what to do if the task fails.
+5.  Click **OK** to save the task.
+
+By following these steps, you can have your `atom_compounder.py` script run automatically on a weekly basis. Remember to test your scheduled task setup thoroughly to ensure it runs correctly and handles the environment variable as expected.
 
 ## Disclaimer
 
