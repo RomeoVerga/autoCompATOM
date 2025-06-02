@@ -41,6 +41,7 @@ def load_config():
     config.setdefault("gas_limit", "300000")
     config.setdefault("fee_denom", "uatom")
     config.setdefault("memo", "Auto-compounded by script")
+    config.setdefault("stake_full_balance", False)
 
     return config
 
@@ -275,15 +276,33 @@ if __name__ == "__main__":
 
                     if claim_tx_response:
                         print("INFO: Claim rewards transaction processed.")
-                        print("--- Attempting to Stake Newly Claimed Rewards ---")
+
+                        stake_full_balance = config.get("stake_full_balance", False)
+                        amount_to_stake = 0 # Initialize amount_to_stake
+
+                        if stake_full_balance:
+                            print("INFO: 'stake_full_balance' is true. Refetching current balance for staking.")
+                            current_balance = get_account_balance(atom_address, lcd_url, denom=fee_denom)
+                            if current_balance is not None:
+                                fee_amount_str = gas_price_str.replace(fee_denom, '')
+                                fee_price = float(fee_amount_str)
+                                calculated_staking_fee = int(gas_limit * fee_price)
+                                amount_to_stake = current_balance - calculated_staking_fee
+                                print(f"INFO: Full balance staking: Total Balance: {current_balance / 1_000_000:.6f} {fee_denom.upper()}, Estimated Fee: {calculated_staking_fee / 1_000_000:.6f} {fee_denom.upper()}, Amount to Stake: {amount_to_stake / 1_000_000:.6f} {fee_denom.upper()}")
+                            else:
+                                print("ERROR: Could not refetch current balance for full balance staking. Defaulting to reward amount.")
+                                amount_to_stake = uatom_rewards # Fallback to rewards if balance fetch fails
+                        else:
+                            amount_to_stake = uatom_rewards
+
+                        print("--- Attempting to Stake ---") # Unified message
                         validator_to_stake_to = config.get("validator_address")
                         if not validator_to_stake_to or validator_to_stake_to == "YOUR_PREFERRED_VALIDATOR_ADDRESS_HERE (optional)" or validator_to_stake_to.strip() == "":
                             print("INFO: 'validator_address' not configured in config.json or is empty. Skipping staking.")
                         else:
-                            amount_to_stake = uatom_rewards
                             if amount_to_stake > 0:
                                 print(f"Attempting to stake {amount_to_stake / 1_000_000:.6f} {fee_denom.upper()} to validator {validator_to_stake_to}")
-                                stake_memo = base_memo + " - Staking Rewards"
+                                stake_memo = base_memo + " - Staking" # Generic staking memo
                                 stake_tx_res = stake_atom_tx(
                                     wallet=wallet,
                                     lcd_endpoint=lcd_url,
@@ -294,7 +313,7 @@ if __name__ == "__main__":
                                     memo=stake_memo,
                                     delegator_address=atom_address,
                                     validator_address=validator_to_stake_to,
-                                    amount_uatom_to_stake=amount_to_stake
+                                    amount_to_stake=amount_to_stake # Ensure this matches function param
                                 )
                                 if stake_tx_res:
                                     print("INFO: Stake transaction processed successfully.")
