@@ -6,5 +6,6 @@
   "gas_price": "0.025uatom",
   "gas_limit": "300000",
   "fee_denom": "uatom",
+  "stake_full_balance": false,
   "memo": "Auto-compounded by script"
 }
