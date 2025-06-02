@@ -23,7 +23,7 @@ This script helps to automatically claim and restake ATOM (Cosmos Hub) staking r
     ```bash
     # If it were a git repo:
     # git clone <repository_url>
-    # cd atom-auto-compounder
+    # cd <repository_directory_name>
     ```
     For now, ensure you have `atom_compounder.py`, `requirements.txt`, and `config.sample.json` in the same directory.
 
@@ -303,12 +303,14 @@ This section provides guidance on how to run the ATOM Auto-Compounding script on
         *   Example: `cp ~/storage/shared/Download/atom_compounder.py .`
 
 5.  **Set up Virtual Environment (Optional but Recommended):**
+    (Assuming you are in the directory where you placed/cloned the script files)
     ```bash
     python -m venv venv
     source venv/bin/activate
     ```
 
 6.  **Install Dependencies:**
+    (If using a virtual environment, ensure it's activated)
     ```bash
     pip install -r requirements.txt
     ```
@@ -347,49 +349,29 @@ Termux provides a package called `termux-job-scheduler` that allows you to sched
    pkg install termux-job-scheduler
    ```
 
-**2. Create a Wrapper Script for Execution:**
-   To ensure the `ATOM_MNEMONIC` environment variable is set and paths are correct for the scheduled job, it's best to use a small wrapper script.
+**2. Prepare the Wrapper Script for Execution:**
+   This project now includes a template wrapper script named `run_atom_compounder.sh` designed for Termux.
 
-   *   Create a file, for example, `~/run_atom_compounder.sh`:
+   *   **Copy the Wrapper Script:**
+       First, copy this script from the project directory (e.g., where you cloned or downloaded it) to a location in your Termux home directory. For example, if your project files are in `~/storage/shared/atom-script-project/` and you want to place the wrapper in your Termux home:
+       ```bash
+       cp ~/storage/shared/atom-script-project/run_atom_compounder.sh ~/run_atom_compounder.sh
+       ```
+       Adjust the source path based on where you have the project files accessible from Termux (you might need to run `termux-setup-storage` first if copying from shared storage).
+
+   *   **Edit the Wrapper Script:**
+       Open the copied `~/run_atom_compounder.sh` script with a text editor (e.g., `nano`):
        ```bash
        nano ~/run_atom_compounder.sh
        ```
-   *   Add the following content to the wrapper script:
-       ```bash
-       #!/data/data/com.termux/files/usr/bin/bash
-       # Wrapper script for Termux job scheduler
+       Carefully review and **edit the "USER CONFIGURATION REQUIRED" section** at the top of the script:
+       *   Set your `ATOM_MNEMONIC` (ensure the phrase is correct and understand the security implications of storing it here).
+       *   Update `SCRIPT_DIR` to the **full path** where your `atom_compounder.py` and `config.json` files are located *within Termux's filesystem* (e.g., `/data/data/com.termux/files/home/my-atom-script`).
+       *   Verify `PYTHON_SCRIPT_NAME` (should be `atom_compounder.py`).
+       *   Adjust `LOG_FILE` path if desired.
+       *   Choose and uncomment the correct `PYTHON_EXEC` path (Termux's system Python or Python from a virtual environment within your `SCRIPT_DIR`).
 
-       # Set the ATOM_MNEMONIC environment variable
-       # IMPORTANT: Storing the mnemonic directly in a script like this has security implications.
-       # Ensure this script file is protected if you choose this method.
-       export ATOM_MNEMONIC="your twelve twentyfour word mnemonic phrase just like this"
-
-       # Navigate to the script's directory (IMPORTANT!)
-       # Replace /path/to/your/script/directory with the actual path in Termux,
-       # e.g., ~/atom-auto-compounder if you cloned it into home.
-       cd /data/data/com.termux/files/home/path/to/your/script/directory
-
-       # Activate virtual environment if you use one (adjust path if needed)
-       # source venv/bin/activate
-
-       # Define the full path to the Python interpreter from your venv or Termux's python
-       # PYTHON_EXEC="venv/bin/python" # If using venv and script is in venv parent
-       PYTHON_EXEC="/data/data/com.termux/files/usr/bin/python" # Termux's default python
-
-       # Define the full path to your script
-       SCRIPT_PATH="atom_compounder.py" # If CD'd into the script directory
-
-       # Define a log file path (optional, but recommended for scheduled tasks)
-       LOG_FILE="/data/data/com.termux/files/home/path/to/your/script/directory/atom_compounder.log"
-
-       echo "--- Job started at $(date) ---" >> $LOG_FILE
-       # Execute the Python script, redirecting stdout and stderr to the log file
-       $PYTHON_EXEC $SCRIPT_PATH >> $LOG_FILE 2>&1
-       echo "--- Job finished at $(date) ---" >> $LOG_FILE
-       ```
-       **Modify the placeholder paths and `ATOM_MNEMONIC` value.**
-
-   *   Make the wrapper script executable:
+   *   **Make the Wrapper Script Executable:**
        ```bash
        chmod +x ~/run_atom_compounder.sh
        ```
